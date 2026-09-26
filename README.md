@@ -1,8 +1,8 @@
 # Pick up a family dinner plan without repeating yesterday.
 
-Tell Home Continuity who is coming, when, and what they cannot eat. In a later session, ask it to continue dinner planning. It retrieves the saved commitment through MCP, reads the family calendar and shopping list, asks Nemotron 3 Super for a meal and ingredients, and adds only missing items to a persistent list.
+Tell Home Continuity who is coming, when, and what they cannot eat. In a later session, ask it to continue dinner planning. The page brings back the saved visit, makes a dinner plan, and adds only missing ingredients to the shopping list.
 
-This is a local HTTP simulation of an Alexa+ conversation. It does not connect to an Alexa device or an external calendar or shopping account. Dietary notes guide the plan, but the person preparing the meal must check ingredient labels and suitability before serving.
+This is a local web simulation of an Alexa+ conversation. It does not connect to an Alexa device or an external calendar or shopping account. Dietary notes guide the plan, but the person preparing the meal must check ingredient labels and suitability before serving.
 
 ## Run locally
 
@@ -22,7 +22,9 @@ pnpm install
 pnpm start
 ```
 
-Run the next commands as separate client processes. The date is the dinner date; use fresh dates or household IDs for a new run.
+Open `http://127.0.0.1:43188/`. Choose a family and dinner date, enter the visit in step 1, then use step 2 to continue dinner planning. The result card shows the meal, what was added to shopping, what needs checking, and the original note. Reload the page with the same family and date to see the saved calendar, list, and latest plan.
+
+The same story also works from separate command-line client processes. The date is the dinner date; use fresh dates or household IDs for a new run.
 
 ```bash
 pnpm demo remember family_a 2030-06-12 "Mom is coming for dinner at 7 PM, and she can't have peanuts"
@@ -42,7 +44,7 @@ Repeat a `pick-up` command to see zero new items. Restart both services and run 
 
 The service binds to `127.0.0.1:43188`. It connects to Continuity Core at `http://127.0.0.1:43187/mcp` using the official MCP client SDK and Streamable HTTP. Set `CONTINUITY_URL`, `HOME_PORT`, or `HOME_DB_PATH` to change the local connection, port, or family SQLite path. `HOME_URL` changes the demo client's target. Continuity Core's `CONTINUITY_DB_PATH` controls its separate memory database.
 
-The endpoints are `POST /api/remember`, `POST /api/pick-up-dinner`, and `GET /api/state?household=family_a&date=2030-06-12`. POST bodies contain `household`, `date`, and `utterance` strings. The JSON response includes the action card or calendar entry, MCP protocol metadata, and the model's raw answer, token usage, latency, and provider cost estimate when a model call occurred.
+The endpoints are `POST /api/remember`, `POST /api/pick-up-dinner`, and `GET /api/state?household=family_a&date=2030-06-12`. POST bodies contain `household`, `date`, and `utterance` strings. The JSON response includes the action card or calendar entry, MCP protocol metadata, and the model's raw answer, token usage, latency, and provider cost estimate when a model call occurred. `GET /api/state` returns the saved calendar, shopping list, and latest dinner plan for the page.
 
 If a note uses a dinner hour without AM or PM, the service assumes evening and marks the time for confirmation. It checks that extracted visitor, time quote, and dietary terms come from the original note; it checks that a plan keeps the saved time and dietary notes, limits ingredients, and rejects direct mentions of restricted terms in the meal or shopping list. These checks are not a medical safety assessment.
 

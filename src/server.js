@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -10,6 +10,11 @@ const config = {
   databasePath: resolve(process.env.HOME_DB_PATH ?? '.local/home.sqlite'),
   continuityUrl: process.env.CONTINUITY_URL ?? 'http://127.0.0.1:43187/mcp'
 };
+const assets = new Map([
+  ['/', { body: readFileSync(new URL('../public/index.html', import.meta.url)), type: 'text/html; charset=utf-8' }],
+  ['/app.css', { body: readFileSync(new URL('../public/app.css', import.meta.url)), type: 'text/css; charset=utf-8' }],
+  ['/app.js', { body: readFileSync(new URL('../public/app.js', import.meta.url)), type: 'text/javascript; charset=utf-8' }]
+]);
 
 mkdirSync(dirname(config.databasePath), { recursive: true });
 const db = new DatabaseSync(config.databasePath);
@@ -74,6 +79,7 @@ const insertEvent = db.prepare(`
 const findItems = db.prepare('SELECT item, source_event_id, created_at FROM shopping_items WHERE household = ? AND date = ? ORDER BY id');
 const insertItem = db.prepare('INSERT OR IGNORE INTO shopping_items (household, date, item, source_event_id) VALUES (?, ?, ?, ?)');
 const findPlan = db.prepare('SELECT * FROM dinner_plans WHERE household = ? AND date = ? AND command_key = ?');
+const findLatestPlan = db.prepare('SELECT * FROM dinner_plans WHERE household = ? AND date = ? ORDER BY id DESC LIMIT 1');
 const insertPlan = db.prepare(`
   INSERT OR IGNORE INTO dinner_plans (household, date, command_key, event_id, plan_json, model_response_json)
   VALUES (?, ?, ?, ?, ?, ?)
@@ -376,7 +382,18 @@ async function pickUp(body) {
 
 function state(query) {
   const { household, date } = input({ household: query.get('household'), date: query.get('date') });
-  return { calendar: findEvents.all(household, date).map(eventFromRow), shopping: findItems.all(household, date) };
+  const calendar = findEvents.all(household, date).map(eventFromRow);
+  const latest = findLatestPlan.get(household, date);
+  return {
+    calendar,
+    shopping: findItems.all(household, date),
+    latestPlan: latest ? {
+      ...JSON.parse(latest.plan_json),
+      event: calendar.find(event => event.id === latest.event_id),
+      model: JSON.parse(latest.model_response_json),
+      createdAt: latest.created_at
+    } : null
+  };
 }
 
 async function readJson(req) {
@@ -398,10 +415,24 @@ function send(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
+function sendAsset(res, asset) {
+  res.writeHead(200, {
+    'content-type': asset.type,
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:"
+  });
+  res.end(asset.body);
+}
+
 const server = createServer(async (req, res) => {
   const started = performance.now();
   try {
     const url = new URL(req.url, `http://127.0.0.1:${config.port}`);
+    if (req.method === 'GET' && assets.has(url.pathname)) {
+      sendAsset(res, assets.get(url.pathname));
+      return;
+    }
     let result;
     if (req.method === 'POST' && url.pathname === '/api/remember') result = await remember(await readJson(req));
     else if (req.method === 'POST' && url.pathname === '/api/pick-up-dinner') result = await pickUp(await readJson(req));
