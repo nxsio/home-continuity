@@ -1,38 +1,50 @@
-# Pick up dinner plans without repeating yesterday.
+# Pick up a family dinner plan without repeating yesterday.
 
-Tell Home Continuity that Mom is coming at 7 and can't have peanuts. In a later session, say “Pick up dinner for Mom tonight.” It retrieves the saved note through MCP, checks the family calendar, and adds four dinner items to a shopping list you can inspect after a restart.
+Tell Home Continuity who is coming, when, and what they cannot eat. In a later session, ask it to continue dinner planning. It retrieves the saved commitment through MCP, reads the family calendar and shopping list, asks Nemotron 3 Super for a meal and ingredients, and adds only missing items to a persistent list.
 
-## Run the dinner story
+This is a local HTTP simulation of an Alexa+ conversation. It does not connect to an Alexa device or an external calendar or shopping account. Dietary notes guide the plan, but the person preparing the meal must check ingredient labels and suitability before serving.
 
-You need Node.js 24+, pnpm, and a local Continuity Core checkout. Start the core service from its directory:
+## Run locally
 
-```bash
-pnpm install
-pnpm start
-```
+You need Node.js 24+, pnpm, a local Continuity Core checkout, and a Nemotron 3 Super API key. Set `NEMOTRON_API_KEY` in the family service's process environment using your local secret manager. `NEMOTRON_BASE_URL` and `NEMOTRON_MODEL` are optional; their defaults are the DeepInfra OpenAI-compatible endpoint and `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B`.
 
-In this project's directory, start the family service:
+From the Continuity Core directory, start its MCP service:
 
 ```bash
 pnpm install
 pnpm start
 ```
 
-Run these commands in separate terminal processes. The date is the dinner date; use a fresh date when replaying the story.
+From this directory, start Home Continuity in a separate terminal:
 
 ```bash
-pnpm demo remember family 2030-06-12
-pnpm demo pick-up family 2030-06-12
-pnpm demo state family 2030-06-12
+pnpm install
+pnpm start
 ```
 
-The first call saves the note with Continuity Core's `remember_commitment` tool and writes Mom's 7 PM visit to the local calendar. The second call uses `recall_commitments` and `resume_commitment`, reads the calendar entry, and adds pasta, tomatoes, basil, and olive oil to SQLite. Its JSON response includes the source memory, calendar entry, shopping list before and after, and the MCP protocol version. Restart this service and run `pnpm demo state` again to see the same calendar and list. Repeating `pick-up` keeps the list unchanged and reports that it is up to date.
+Run the next commands as separate client processes. The date is the dinner date; use fresh dates or household IDs for a new run.
 
-## Connect the two services
+```bash
+pnpm demo remember family_a 2030-06-12 "Mom is coming for dinner at 7 PM, and she can't have peanuts"
+pnpm demo pick-up family_a 2030-06-12 "Pick up dinner for Mom tonight"
+pnpm demo state family_a 2030-06-12
 
-The family service uses the official MCP client SDK over Streamable HTTP. It connects to `http://127.0.0.1:43187/mcp` by default. Set `CONTINUITY_URL` when the core service uses another address. Set `HOME_PORT` to change this service's loopback port, `HOME_URL` for the demo client, and `HOME_DB_PATH` for its SQLite file. Continuity Core's own `CONTINUITY_DB_PATH` controls the memory database. Each service owns its storage; neither copies the other's implementation.
+pnpm demo remember family_b 2030-06-13 "Aunt Maya will join dinner at 6:30 PM; she can't have dairy or mushrooms"
+pnpm demo pick-up family_b 2030-06-13 "Continue Aunt Maya's dinner plan and add what we still need"
+pnpm demo state family_b 2030-06-13
+```
 
-The HTTP endpoints are `POST /api/remember`, `POST /api/pick-up-dinner`, and `GET /api/state?household=family&date=2030-06-12`. The demo script sends the example sentences to these endpoints. This first scenario recognizes Mom's 7 PM visit and peanut restriction with explicit rules; it does not use a language model to interpret arbitrary requests. The commands simulate the Alexa+ conversation in a local HTTP experience. Every result card is built from tool responses and SQLite rows, and failed calls return a visible JSON error.
+The first call for each household extracts the visitor, time, and dietary notes with Nemotron, saves the original note through MCP `remember_commitment`, and writes a calendar entry to SQLite. The later call uses MCP `recall_commitments` and `resume_commitment`, sends the current calendar and list to Nemotron, and writes the returned ingredients to SQLite. Its action card shows the input, meal, ingredients, actual new list items, and confirmations. Results depend on the model response; the examples do not encode fixed meals or shopping items.
+
+Repeat a `pick-up` command to see zero new items. Restart both services and run `state` or the same `pick-up` command again to inspect persistence. A repeated command reuses its saved plan, while a new command asks the model for a new plan. Model and MCP failures return visible JSON errors; there is no fixed-plan fallback.
+
+## Local API and storage
+
+The service binds to `127.0.0.1:43188`. It connects to Continuity Core at `http://127.0.0.1:43187/mcp` using the official MCP client SDK and Streamable HTTP. Set `CONTINUITY_URL`, `HOME_PORT`, or `HOME_DB_PATH` to change the local connection, port, or family SQLite path. `HOME_URL` changes the demo client's target. Continuity Core's `CONTINUITY_DB_PATH` controls its separate memory database.
+
+The endpoints are `POST /api/remember`, `POST /api/pick-up-dinner`, and `GET /api/state?household=family_a&date=2030-06-12`. POST bodies contain `household`, `date`, and `utterance` strings. The JSON response includes the action card or calendar entry, MCP protocol metadata, and the model's raw answer, token usage, latency, and provider cost estimate when a model call occurred.
+
+If a note uses a dinner hour without AM or PM, the service assumes evening and marks the time for confirmation. It checks that extracted visitor, time quote, and dietary terms come from the original note; it checks that a plan keeps the saved time and dietary notes, limits ingredients, and rejects direct mentions of restricted terms in the meal or shopping list. These checks are not a medical safety assessment.
 
 ## License
 

@@ -1,12 +1,13 @@
-const [phase, household, date] = process.argv.slice(2);
+const [phase, household, date, ...words] = process.argv.slice(2);
 if (!['remember', 'pick-up', 'state'].includes(phase) || !household || !date) {
-  throw new Error('Usage: pnpm demo <remember|pick-up|state> <household> <YYYY-MM-DD>');
+  throw new Error('Usage: pnpm demo <remember|pick-up|state> <household> <YYYY-MM-DD> [utterance]');
 }
 
 const base = process.env.HOME_URL ?? 'http://127.0.0.1:43188';
+const utterance = words.join(' ');
 const requests = {
-  remember: ['/api/remember', { household, date, utterance: "Mom is coming at 7, and she can't have peanuts" }],
-  'pick-up': ['/api/pick-up-dinner', { household, date, utterance: 'Pick up dinner for Mom tonight' }]
+  remember: ['/api/remember', { household, date, utterance: utterance || "Mom is coming for dinner at 7 PM, and she can't have peanuts" }],
+  'pick-up': ['/api/pick-up-dinner', { household, date, utterance: utterance || 'Pick up dinner for Mom tonight' }]
 };
 let response;
 if (phase === 'state') {
