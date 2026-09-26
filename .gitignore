@@ -2,4 +2,7 @@ AGENTS.md
 .ai/
 .local/
 node_modules/
+.wrangler/
+cloudflare/.dev.vars*
+cloudflare/.env*
 .DS_Store

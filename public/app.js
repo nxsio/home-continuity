@@ -69,9 +69,9 @@ async function request(path, body) {
   try {
     data = await response.json();
   } catch {
-    throw new Error(`The local service returned an unreadable response (HTTP ${response.status}).`);
+    throw new Error(`The service returned an unreadable response (HTTP ${response.status}).`);
   }
-  if (!response.ok) throw new Error(data.error || `The local service returned HTTP ${response.status}.`);
+  if (!response.ok) throw new Error(data.error || `The service returned HTTP ${response.status}.`);
   return data;
 }
 
@@ -173,7 +173,7 @@ function clearResult() {
 
 function renderState(data) {
   if (!Array.isArray(data.calendar) || !Array.isArray(data.shopping)) {
-    throw new Error('The local service returned an incomplete family calendar.');
+    throw new Error('The service returned an incomplete family calendar.');
   }
   ui['calendar-count'].textContent = `${data.calendar.length} saved`;
   ui['calendar-list'].replaceChildren();
@@ -256,7 +256,7 @@ for (const control of [ui.household, ui.date]) {
     clearError();
     void loadState().catch(error => {
       showError('Could not load this family calendar.', error);
-      setStatus('The local service is unavailable', 'error');
+      setStatus('The service is unavailable', 'error');
     });
   });
 }
@@ -264,5 +264,5 @@ for (const control of [ui.household, ui.date]) {
 rememberContextInUrl();
 void loadState().catch(error => {
   showError('Could not load this family calendar.', error);
-  setStatus('The local service is unavailable', 'error');
+  setStatus('The service is unavailable', 'error');
 });
