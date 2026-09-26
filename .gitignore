@@ -1,0 +1,5 @@
+AGENTS.md
+.ai/
+.local/
+node_modules/
+.DS_Store
