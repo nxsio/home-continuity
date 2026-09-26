@@ -2,6 +2,8 @@
 
 Tell Home Continuity who is coming, when, and what they cannot eat. In a later session, ask it to continue dinner planning. The page brings back the saved visit, makes a dinner plan, and adds only missing ingredients to the shopping list.
 
+[Try the live demo](https://home-continuity.nxsio.com/). Save a dinner visit, then ask it to continue the plan. The calendar and shopping list remain in this browser when you reopen the page.
+
 This is a web simulation of an Alexa+ conversation. It does not connect to an Alexa device or an external calendar or shopping account. Dietary notes guide the plan, but the person preparing the meal must check ingredient labels and suitability before serving.
 
 ## Run locally
@@ -44,20 +46,11 @@ Repeat a `pick-up` command to see zero new items. Restart both services and run 
 
 The [`cloudflare/`](cloudflare/) adapter serves the same page and API from a Worker. D1 stores visits, shopping items, dinner plans, and model usage. A random, persistent HttpOnly cookie keeps each visitor's data separate, even when two visitors enter the same household and date. Keep the cookie in the same browser to return to a saved plan. The Worker calls Continuity Core's Streamable HTTP `/mcp` endpoint with the official MCP client and a shared bearer secret. It uses DeepInfra's Nemotron 3 Super for visit extraction and dinner planning.
 
-For local development, put `CONTINUITY_MCP_URL`, `CORE_SHARED_SECRET`, and `NEMOTRON_API_KEY` in an untracked `cloudflare/.dev.vars` file. Point `CONTINUITY_MCP_URL` to a running Continuity Core `/mcp` endpoint. The URL and both credentials are Worker secrets in production. Then run:
+The company D1 database and custom domain are already configured in `cloudflare/wrangler.jsonc`. The Core URL must be an HTTPS URL ending in `/mcp`; use the same `CORE_SHARED_SECRET` in both Workers. Set `CONTINUITY_MCP_URL`, `CORE_SHARED_SECRET`, and `NEMOTRON_API_KEY` with `pnpm exec wrangler secret put NAME --config cloudflare/wrangler.jsonc`, passing each value directly from a secret manager. To publish an update:
 
 ```bash
-pnpm install
-pnpm exec wrangler d1 migrations apply HOME_DB --local --config cloudflare/wrangler.jsonc --persist-to .local/wrangler
-pnpm exec wrangler dev --config cloudflare/wrangler.jsonc --persist-to .local/wrangler
-```
-
-For the company Cloudflare account, create one D1 database and copy the returned database ID into `cloudflare/wrangler.jsonc` in place of the local placeholder UUID. The Core URL must be an HTTPS URL ending in `/mcp`; use the same `CORE_SHARED_SECRET` in both Workers. Put the three values in an untracked `cloudflare/.env.production` file using the same `NAME="value"` format as `.dev.vars`. Wrangler uploads them as Worker secrets with the code in one deployment:
-
-```bash
-pnpm exec wrangler d1 create home-continuity
 pnpm exec wrangler d1 migrations apply HOME_DB --remote --config cloudflare/wrangler.jsonc
-pnpm exec wrangler deploy --config cloudflare/wrangler.jsonc --secrets-file cloudflare/.env.production
+pnpm exec wrangler deploy --config cloudflare/wrangler.jsonc
 ```
 
 The public demo allows at most 100 model requests per UTC day across all visitors and eight per visitor per UTC day. Both limits are enforced in D1 before a request reaches DeepInfra; a request over either limit returns HTTP 429 with a visible explanation. Reusing a saved dinner command does not call the model again. [Workers](https://developers.cloudflare.com/workers/platform/limits/) and [D1](https://developers.cloudflare.com/d1/platform/pricing/) offer Free plans; DeepInfra model calls use the account behind the secret.

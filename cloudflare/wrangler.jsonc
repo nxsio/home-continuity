@@ -3,6 +3,9 @@
   "name": "home-continuity",
   "main": "./worker.js",
   "compatibility_date": "2026-09-25",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "home-continuity.nxsio.com", "custom_domain": true }],
   "assets": {
     "directory": "../public",
     "binding": "ASSETS",
@@ -12,7 +15,7 @@
     {
       "binding": "HOME_DB",
       "database_name": "home-continuity",
-      "database_id": "00000000-0000-4000-8000-000000000000",
+      "database_id": "9fbdaffe-7481-498e-9c00-9f42bd1f2c4a",
       "migrations_dir": "migrations"
     }
   ],
