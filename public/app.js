@@ -150,7 +150,12 @@ function renderCompleted(data) {
     `${data.shopping.before.length} before · ${data.shopping.after.length} now`);
   addConfirmations(card, plan.confirmations);
   details(card, 'What carried over', [data.sources.calendar.sourceUtterance, data.sources.resumed.next_step]);
-  details(card, 'Technical trace', [`Saved memory #${data.sources.resumed.id}`, `MCP ${data.mcp.protocolVersion}`], data.model.rawContent);
+  const trace = [`Saved memory #${data.sources.resumed.id}`, `MCP ${data.mcp.protocolVersion}`];
+  if (data.model.provider === 'bedrock') {
+    trace.unshift(`${data.model.reused ? 'Saved via' : 'This request used'} AgentCore → Bedrock ${data.model.model} → MCP ${data.mcp.tools.join(', ')}`);
+    if (data.model.agentCoreRequestId) trace.push(`AgentCore request ${data.model.agentCoreRequestId}`);
+  }
+  details(card, 'Technical trace', trace, data.model.rawContent);
   ui['pickup-status'].textContent = 'Completed';
 }
 
@@ -162,7 +167,10 @@ function renderPersistedPlan(plan, shoppingCount) {
   row(card, 'Ingredients', chips(plan.ingredients, true), `${shoppingCount} items on the shopping list`);
   addConfirmations(card, [...plan.confirmations, `Check ingredient labels against ${plan.event.person}'s dietary notes before serving.`]);
   details(card, 'What carried over', [plan.event.sourceUtterance]);
-  details(card, 'Technical trace', [`Saved memory #${plan.event.memoryId}`], plan.model.rawContent);
+  details(card, 'Technical trace', [
+    `Saved memory #${plan.event.memoryId}`,
+    ...(plan.model.provider === 'bedrock' ? [`Saved via AgentCore → Bedrock ${plan.model.model} → MCP`] : [])
+  ], plan.model.rawContent);
 }
 
 function clearResult() {

@@ -85,26 +85,26 @@ export function visitFromModel(raw, utterance) {
 
 export function planFromModel(raw, events, command) {
   if (raw?.intent === 'unrelated') throw new HttpError(422, 'This request does not ask to plan dinner.');
-  if (raw?.intent !== 'dinner') throw new Error(`Nemotron returned no dinner intent: ${JSON.stringify(raw)}`);
+  if (raw?.intent !== 'dinner') throw new Error(`The model returned no dinner intent: ${JSON.stringify(raw)}`);
   const event = events.find(item => item.id === raw.eventId);
-  if (!event) throw new Error(`Nemotron chose a calendar event that does not exist: ${JSON.stringify(raw)}`);
+  if (!event) throw new Error(`The model chose a calendar event that does not exist: ${JSON.stringify(raw)}`);
   if (events.length > 1 && !command.toLocaleLowerCase().includes(event.person.toLocaleLowerCase())) {
     throw new HttpError(422, 'Name the visitor so I can choose the right dinner.');
   }
-  if (raw.time !== event.time) throw new Error(`Nemotron changed the visit time: ${JSON.stringify(raw)}`);
+  if (raw.time !== event.time) throw new Error(`The model changed the visit time: ${JSON.stringify(raw)}`);
   const expected = event.restrictions.map(value => value.toLocaleLowerCase()).sort();
   const echoed = Array.isArray(raw.restrictions) ? raw.restrictions.map(value => typeof value === 'string' ? value.toLocaleLowerCase() : '').sort() : [];
   if (JSON.stringify(expected) !== JSON.stringify(echoed)) {
-    throw new Error(`Nemotron dropped or changed a dietary note: ${JSON.stringify(raw)}`);
+    throw new Error(`The model dropped or changed a dietary note: ${JSON.stringify(raw)}`);
   }
   const meal = typeof raw.meal === 'string' ? raw.meal.trim() : '';
-  if (typeof meal !== 'string' || !meal || meal.length > 120) throw new Error(`Nemotron returned no usable meal: ${JSON.stringify(raw)}`);
+  if (typeof meal !== 'string' || !meal || meal.length > 120) throw new Error(`The model returned no usable meal: ${JSON.stringify(raw)}`);
   if (!Array.isArray(raw.ingredients) || raw.ingredients.length < 1 || raw.ingredients.length > 12) {
-    throw new Error(`Nemotron returned no usable ingredient list: ${JSON.stringify(raw)}`);
+    throw new Error(`The model returned no usable ingredient list: ${JSON.stringify(raw)}`);
   }
   const ingredients = raw.ingredients.map(value => typeof value === 'string' ? value.trim().toLocaleLowerCase() : '');
   if (ingredients.some(value => !value || value.length > 80) || new Set(ingredients).size !== ingredients.length) {
-    throw new Error(`Nemotron returned duplicate or invalid ingredients: ${JSON.stringify(raw)}`);
+    throw new Error(`The model returned duplicate or invalid ingredients: ${JSON.stringify(raw)}`);
   }
   const ingredientText = [meal.toLocaleLowerCase(), ...ingredients];
   const knownRestrictedTerms = {
@@ -118,12 +118,12 @@ export function planFromModel(raw, events, command) {
     const term = restriction.toLocaleLowerCase().replace(/^(?:no|avoid|without)\s+/, '').replace(/s$/, '');
     const blocked = [term, ...(knownRestrictedTerms[term] ?? [])];
     if (blocked.some(word => word.length >= 4 && ingredientText.some(value => value.includes(word)))) {
-      throw new Error(`Nemotron included ${restriction} in the meal or shopping list: ${JSON.stringify(raw)}`);
+      throw new Error(`The model included ${restriction} in the meal or shopping list: ${JSON.stringify(raw)}`);
     }
   }
   if (!Array.isArray(raw.confirmations) || raw.confirmations.length > 5 ||
       raw.confirmations.some(value => typeof value !== 'string' || !value.trim() || value.length > 160)) {
-    throw new Error(`Nemotron returned invalid confirmation notes: ${JSON.stringify(raw)}`);
+    throw new Error(`The model returned invalid confirmation notes: ${JSON.stringify(raw)}`);
   }
   return {
     intent: 'dinner', eventId: event.id, time: event.time, restrictions: event.restrictions,

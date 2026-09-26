@@ -1,5 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { HttpError, input, eventFromRow, visitFromModel, planFromModel, commandKey } from './family-logic.js';
+import { agentCoreConfigured, invokeAgentCore } from './aws-runtime.js';
 
 const COOKIE = 'hc_session';
 const MODEL_URL = 'https://api.deepinfra.com/v1/openai/chat/completions';
@@ -73,7 +74,7 @@ async function withMcp(env, run) {
   }
 }
 
-async function chargeModelCall(env, sessionId) {
+async function chargeModelCall(env, sessionId, aws = false) {
   const day = new Date().toISOString().slice(0, 10);
   const globalKey = `global:${day}`;
   const sessionKey = `session:${sessionId}:${day}`;
@@ -81,11 +82,16 @@ async function chargeModelCall(env, sessionId) {
   try {
     await env.HOME_DB.batch([
       query(env.HOME_DB, upsert, globalKey, GLOBAL_DAILY_LIMIT),
-      query(env.HOME_DB, upsert, sessionKey, SESSION_DAILY_LIMIT)
+      query(env.HOME_DB, upsert, sessionKey, SESSION_DAILY_LIMIT),
+      ...(aws ? [query(env.HOME_DB, upsert, 'aws:total', 1000)] : [])
     ]);
   } catch (error) {
     const global = await query(env.HOME_DB, 'SELECT used FROM model_quota WHERE quota_key = ?', globalKey).first();
     const personal = await query(env.HOME_DB, 'SELECT used FROM model_quota WHERE quota_key = ?', sessionKey).first();
+    if (aws) {
+      const total = await query(env.HOME_DB, 'SELECT used FROM model_quota WHERE quota_key = ?', 'aws:total').first();
+      if ((total?.used ?? 0) >= 1000) throw new HttpError(429, 'The AWS demo limit has been reached.');
+    }
     if ((global?.used ?? 0) >= GLOBAL_DAILY_LIMIT) throw new HttpError(429, 'The daily demo limit has been reached. Try again tomorrow.');
     if ((personal?.used ?? 0) >= SESSION_DAILY_LIMIT) throw new HttpError(429, 'This session has reached its daily demo limit. Try again tomorrow.');
     throw error;
@@ -185,34 +191,50 @@ async function pickUp(env, sessionId, body) {
   const findPlanSql = 'SELECT * FROM dinner_plans WHERE session_id = ? AND household = ? AND date = ? AND command_key = ?';
   const cached = await query(db, findPlanSql, sessionId, household, date, key).first();
   const context = memoryContext(sessionId, household, date);
-  const { value, mcp } = await withMcp(env, async call => {
-    const recalled = await call('recall_commitments', { context });
-    if (!Array.isArray(recalled.commitments)) throw new Error('Continuity Core returned no commitment list.');
-    for (const event of events) {
-      if (!recalled.commitments.some(entry => entry.id === event.memoryId)) {
-        throw new HttpError(409, `The calendar entry for ${event.person} has no matching saved memory.`);
+  let value;
+  let mcp;
+  if (agentCoreConfigured(env) && !cached) {
+    await chargeModelCall(env, sessionId, true);
+    const result = await invokeAgentCore(env, {
+      context, date, request: utterance, calendar: events,
+      shoppingList: beforeModel.map(item => item.item), planPrompt
+    }, events);
+    const plan = planFromModel(result.plan, events, utterance);
+    value = {
+      plan, modelResponse: result.model, event: events.find(event => event.id === plan.eventId),
+      resumed: result.sources.resumed, recalled: result.sources.recalled
+    };
+    mcp = result.mcp;
+  } else {
+    ({ value, mcp } = await withMcp(env, async call => {
+      const recalled = await call('recall_commitments', { context });
+      if (!Array.isArray(recalled.commitments)) throw new Error('Continuity Core returned no commitment list.');
+      for (const event of events) {
+        if (!recalled.commitments.some(entry => entry.id === event.memoryId)) {
+          throw new HttpError(409, `The calendar entry for ${event.person} has no matching saved memory.`);
+        }
       }
-    }
-    let plan;
-    let modelResponse;
-    if (cached) {
-      plan = planFromModel(JSON.parse(cached.plan_json), events, utterance);
-      modelResponse = JSON.parse(cached.model_response_json);
-    } else {
-      const model = await askNemotron(env, sessionId, [
-        { role: 'system', content: planPrompt },
-        { role: 'user', content: JSON.stringify({ request: utterance, date, calendar: events, remembered: recalled.commitments, shoppingList: beforeModel.map(item => item.item) }) }
-      ], 950);
-      plan = planFromModel(model.value, events, utterance);
-      modelResponse = model.response;
-    }
-    const event = events.find(item => item.id === plan.eventId);
-    const resumed = await call('resume_commitment', { id: event.memoryId });
-    if (resumed.id !== event.memoryId || resumed.context !== context || !resumed.commitment?.includes(event.sourceUtterance)) {
-      throw new Error('The saved memory does not match this calendar visit.');
-    }
-    return { plan, modelResponse, event, resumed, recalled: recalled.commitments.find(entry => entry.id === event.memoryId) };
-  });
+      let plan;
+      let modelResponse;
+      if (cached) {
+        plan = planFromModel(JSON.parse(cached.plan_json), events, utterance);
+        modelResponse = JSON.parse(cached.model_response_json);
+      } else {
+        const model = await askNemotron(env, sessionId, [
+          { role: 'system', content: planPrompt },
+          { role: 'user', content: JSON.stringify({ request: utterance, date, calendar: events, remembered: recalled.commitments, shoppingList: beforeModel.map(item => item.item) }) }
+        ], 950);
+        plan = planFromModel(model.value, events, utterance);
+        modelResponse = model.response;
+      }
+      const event = events.find(item => item.id === plan.eventId);
+      const resumed = await call('resume_commitment', { id: event.memoryId });
+      if (resumed.id !== event.memoryId || resumed.context !== context || !resumed.commitment?.includes(event.sourceUtterance)) {
+        throw new Error('The saved memory does not match this calendar visit.');
+      }
+      return { plan, modelResponse, event, resumed, recalled: recalled.commitments.find(entry => entry.id === event.memoryId) };
+    }));
+  }
   const before = await findItems(db, sessionId, household, date);
   if (!cached) {
     await query(db, `INSERT OR IGNORE INTO dinner_plans

@@ -8,10 +8,12 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "demo": "node scripts/demo.js"
+    "demo": "node scripts/demo.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "2.1.0"
+    "@modelcontextprotocol/client": "2.1.0",
+    "aws4fetch": "1.0.20"
   },
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
