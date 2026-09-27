@@ -92,6 +92,36 @@ function element(tag, className = '', text = null) {
   return node;
 }
 
+function calendarText(value) {
+  return String(value).replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll(';', '\\;').replaceAll(',', '\\,');
+}
+
+function downloadCalendarEvent(visit) {
+  const date = String(visit.date).replaceAll('-', '');
+  const time = String(visit.time).replace(':', '');
+  if (!/^\d{8}$/.test(date) || !/^\d{4}$/.test(time)) {
+    showError('Calendar download unavailable', 'The saved visit has an invalid date or time.');
+    return;
+  }
+  const note = [visit.sourceUtterance, `Food to avoid: ${visit.restrictions.join(', ')}`].filter(Boolean).join('\n');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NXSIO//Home Continuity//EN',
+    'BEGIN:VEVENT', `UID:${crypto.randomUUID()}@home-continuity.nxsio.com`,
+    `DTSTAMP:${new Date().toISOString().replaceAll('-', '').replaceAll(':', '').replace(/\.\d{3}Z$/, 'Z')}`,
+    `DTSTART:${date}T${time}00`, `SUMMARY:${calendarText(visit.title)}`,
+    `DESCRIPTION:${calendarText(note)}`, 'END:VEVENT', 'END:VCALENDAR'
+  ];
+  const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = element('a');
+  link.href = url;
+  link.download = `dinner-visit-${visit.date}.ics`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function chips(values, neutral = false) {
   const group = element('div', 'chips');
   for (const value of values) group.append(element('span', neutral ? 'chip neutral' : 'chip', value));
@@ -199,6 +229,10 @@ function renderState(data) {
   for (const visit of data.calendar) {
     const item = element('div', 'event');
     item.append(element('strong', '', visit.title), element('span', '', `${visit.time} · Avoid ${visit.restrictions.join(', ')}`));
+    const download = element('button', 'copy-action', 'Download calendar event');
+    download.type = 'button';
+    download.addEventListener('click', () => downloadCalendarEvent(visit));
+    item.append(download);
     ui['calendar-list'].append(item);
   }
 

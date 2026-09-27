@@ -25,6 +25,7 @@ body {
 button, input, textarea { font: inherit; }
 button, input, textarea { color: var(--ink); }
 button { cursor: pointer; }
+.hero .category { margin: 0 0 12px; color: var(--green-dark); font-size: 11px; font-weight: 720; letter-spacing: .13em; }
 button:disabled, input:disabled, textarea:disabled { cursor: wait; opacity: .62; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .shell { max-width: 1240px; min-height: 100vh; margin: auto; padding: 30px 48px 60px; }
@@ -97,6 +98,7 @@ button:disabled, input:disabled, textarea:disabled { cursor: wait; opacity: .62;
 .event + .event { padding-top: 11px; border-top: 1px solid var(--line); }
 .event strong { display: block; color: var(--ink); font-size: 14px; }
 .event span { display: block; margin-top: 3px; }
+.event .copy-action { margin-top: 4px; }
 .shopping-items { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 13px; }
 .shopping-items li { color: var(--ink); overflow-wrap: anywhere; }
 .shopping-items li::before { content: "✓"; color: var(--green); margin-right: 8px; }
