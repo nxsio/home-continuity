@@ -100,6 +100,9 @@ button:disabled, input:disabled, textarea:disabled { cursor: wait; opacity: .62;
 .shopping-items { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 13px; }
 .shopping-items li { color: var(--ink); overflow-wrap: anywhere; }
 .shopping-items li::before { content: "✓"; color: var(--green); margin-right: 8px; }
+.copy-action { margin-top: 14px; padding: 8px 0; border: 0; background: transparent; color: var(--green-dark); font-weight: 660; text-decoration: underline; text-underline-offset: 3px; }
+.copy-action:hover { color: var(--green); }
+.copy-status { display: block; min-height: 18px; color: var(--muted); font-size: 12px; }
 
 @media (max-width: 900px) {
   .shell { padding: 25px 28px 50px; }

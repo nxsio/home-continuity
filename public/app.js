@@ -2,7 +2,7 @@ const ids = [
   'household', 'date', 'service-status', 'error-box', 'error-title', 'error-message',
   'remember-form', 'pickup-form', 'visit-note', 'pickup-note', 'remember-button',
   'pickup-button', 'remember-status', 'pickup-status', 'result-empty', 'result-card',
-  'calendar-count', 'calendar-list', 'shopping-count', 'shopping-list'
+  'calendar-count', 'calendar-list', 'shopping-count', 'shopping-list', 'copy-shopping', 'copy-shopping-status'
 ];
 const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 ui.status = document.querySelector('.service-status');
@@ -18,6 +18,16 @@ ui.household.value = query.get('household') || 'family';
 ui.date.value = query.get('date') || localTomorrow();
 let visibleResultKey = null;
 let stateRequest = 0;
+let shoppingItems = [];
+
+ui['copy-shopping'].addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(shoppingItems.join('\n'));
+    ui['copy-shopping-status'].textContent = 'List copied. Paste it where you shop.';
+  } catch {
+    ui['copy-shopping-status'].textContent = 'Copy unavailable. Select the items above instead.';
+  }
+});
 
 function context() {
   return { household: ui.household.value.trim(), date: ui.date.value };
@@ -193,6 +203,9 @@ function renderState(data) {
   }
 
   ui['shopping-count'].textContent = `${data.shopping.length} items`;
+  shoppingItems = data.shopping.map(entry => entry.item);
+  ui['copy-shopping'].hidden = shoppingItems.length === 0;
+  ui['copy-shopping-status'].textContent = '';
   ui['shopping-list'].replaceChildren();
   if (!data.shopping.length) ui['shopping-list'].append(element('p', '', 'Nothing on the list yet.'));
   else {
