@@ -8,25 +8,27 @@ export async function askNemotron(messages, maxTokens) {
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, response_format: { type: 'json_object' }, temperature: 0, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, response_format: { type: 'json_object' },
+      ...(baseUrl.includes('deepinfra.com') ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+      temperature: 0, max_tokens: maxTokens }),
     signal: AbortSignal.timeout(90_000)
   });
   const raw = await response.text();
-  if (!response.ok) throw new Error(`Nemotron HTTP ${response.status} ${response.statusText}: ${raw}`);
+  if (!response.ok) throw new Error(`The dinner model could not complete this request (HTTP ${response.status}). No new result was saved.`);
 
   let result;
   try {
     result = JSON.parse(raw);
   } catch {
-    throw new Error(`Nemotron returned invalid HTTP JSON: ${raw}`);
+    throw new Error('The dinner model returned an unreadable result. No new result was saved.');
   }
   const content = result.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim()) throw new Error(`Nemotron returned no answer text: ${raw}`);
+  if (typeof content !== 'string' || !content.trim()) throw new Error('The dinner model returned no result. No new result was saved.');
   let value;
   try {
     value = JSON.parse(content);
   } catch {
-    throw new Error(`Nemotron returned invalid plan JSON: ${content}`);
+    throw new Error('The dinner model returned an unusable result. No new result was saved.');
   }
   return {
     value,
